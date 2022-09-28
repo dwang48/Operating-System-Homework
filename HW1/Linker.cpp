@@ -28,6 +28,13 @@ struct program_text{
 
 //functions list for the assignment
 void read(char* argv[]);
+//convert token to int
+int converter(string input);
+//4 instructions
+void relative();
+void external();
+void immediate(string input, int idx);
+void absolute();
 
 
 
@@ -50,6 +57,25 @@ void read(char* argv[]){
   }
 }
 
+int converter(string input){
+  if(input.size()>4){
+    return 9999;
+  }
+  else{
+    return stoi(input);
+  }
+}
+
+
+
+void immediate(string input, int idx){
+  if(input.size()>4){
+    cout<<" Error: Illegal immediate value; treated as 9999" << endl;
+  }
+  else{
+    int address = 
+  }
+}
 
 
 
