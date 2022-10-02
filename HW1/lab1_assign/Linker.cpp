@@ -1,6 +1,20 @@
-#include<iostream>
-#include<stdio.h>
-#include<string.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <cctype>
+#include <map>
+#include <algorithm>
+using namespace std;
+
+
+int linenum,lineoffset;
+
+//Function list for the Lab
+void read();
+
+
+
 
 
 void __parseerror(int errcode) { 

@@ -10,6 +10,8 @@
 #include <math.h>
 #include <iterator>
 #include <unordered_set>
+#include <unordered_map>
+
 
 
 using namespace std;
@@ -58,7 +60,7 @@ int converter(string input);
 vector<vector<string>> tokens_parser(vector<string>& tokens);
 string definition_parser(string input);
 string use_parser(string input);
-string program(string input);
+string program_parser(string input);
 
 //4 instructions
 void relative(string input, int );
@@ -108,6 +110,9 @@ vector<vector<string>> tokens_parser(vector<string>& tokens){
   return tokens_list;
 }
 
+void relative(string input){
+
+}
 
 
 void immediate(string input, int idx){
@@ -118,6 +123,12 @@ void immediate(string input, int idx){
     int address = stoi(input);
   }
 }
+
+
+void absolute(){
+
+}
+
 
 // int generate_errcode(int current_token){
 //   if(current_token >= pow(2,30)){
@@ -166,11 +177,14 @@ int main (int argc, char* argv[])
   }
   read(argv);
   tokens_list = tokens_parser(tokens);
-  for(int i = 0; i < tokens_list.size();i++){
-    for(int j = 0; j < tokens_list[i].size();j++){
-      cout<<tokens_list[i][j]<<"   "<< i << j << endl;
-    }
-  }
+
+  // for(int i = 0; i < tokens_list.size();i++){
+  //   for(int j = 0; j < tokens_list[i].size();j++){
+  //     cout<<tokens_list[i][j]<<"   "<< i << j << endl;
+  //   }
+  // }
+  
+  
   //first pass
     
   
