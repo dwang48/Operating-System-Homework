@@ -30,36 +30,19 @@ unordered_map<string,pair<int,int>> symbol_location_map;
 
 
 //For print parse errors
-int linenum,lineoffset;
+int linenum,lineoffset,linelen;
 int current_token = 0;
 int total_tokens;
 int errcode = -1;
 int warncode = -1;
 
-
-
-
-
-struct definition_list{
-  int defcount = 0;
-  vector<pair<string,string>> deflist;
-};
-
-struct use_list{
-  int usecount = 0;
-  vector<string> uselist;
-};
-
-struct program_text{
-  int codecount = 0;
-  vector<pair<char,int>> text;
-};
+int num_instr = 0;
+vector<string> instructions_list;
 
 
 
 
 //functions list for the assignment
-void read(char* argv[]);
 //convert token to int
 int converter(string input);
 //parse input
@@ -69,16 +52,19 @@ string use_parser(string input);
 string program_parser(string input);
 
 //functions that help check that the tokens have the correct sequence of characters and length
-bool readInt(string input);
-bool readSymbol(string input);
+bool isInt(string input);
+bool isSymbol(string input);
 bool readIAER(string input);
+int readInt();
+int readSymbol();
+int readIAER();
 
 
 //4 instructions
-void relative(string input);
-void external(string input);
-void immediate(string input, int idx);
-void absolute();
+string relative(string input,string error);
+string external(string input, string error);
+string immediate(string input, string error);
+string absolute(string input, string error);
 
 
 //functions for error messages and warning messages
@@ -88,14 +74,14 @@ void __parseerror(int errcode);
 void __parsewarning(int warncode);
 
 //two passes
-void pass(int num);//num = 1 for pass1, num = 2 for pass 2
-
+void pass1();
+void pass2();
 
 //generate output
 void generate_symbol_table();
 void generate_memory_map();
 
-bool readSymbol(string input){
+bool isSymbol(string input){
   char c = input[0];
   
   //check is the input is a number or an instruction
@@ -108,13 +94,22 @@ bool readSymbol(string input){
   return true;
 }
 
-bool readInt(string input){
+string readSymbol(){
+
+}
+
+
+bool isInt(string input){
   for(int i = 0; i < input.size(); i++){
     if(!isdigit(input[i])){
       return false;
     }
   }
   return true;
+}
+
+string readInt(){
+
 }
 
 bool readIAER(string input){
@@ -128,22 +123,23 @@ bool readIAER(string input){
 
 
 
-void getToken(char* argv[]){
+string getToken(char* argv[],int linelen, int linenum){
+  string token;
   string line;
   ifstream input(argv[1]);
   if(input.is_open()){
-    int row = 0;
     while(getline(input,line,'\n')){
-      row++;
+      linenum++;
       istringstream iss(line);
       string current;
-      int col = -1;
       while(getline(iss,current,' ')){
-        col++;
-        if(readSymbol(current)&&!symbol_set.count(current)){
+        if(isSymbol(current)&&!symbol_set.count(current)){
           symbols.push_back(current);
           symbol_set.insert(current);
-          symbol_location_map[current] = make_pair(row,col);
+        }
+        if(readIAER(current)){
+            num_instr++;
+            instructions_list.push_back(current);
         }
       }
     }
@@ -154,11 +150,11 @@ void getToken(char* argv[]){
   }
 }
 
-void pass(int num,char* argv[], vector<string>& symbols){
+void pass1(int num,char* argv[], vector<string>& symbols){
   int module  = 1;
   int module_base = 0;
 
-  int instruction_num = 0;
+
   int linenum = 0;
   int lineoffset = 1;
 
@@ -166,9 +162,55 @@ void pass(int num,char* argv[], vector<string>& symbols){
   int i = 1;
   string line;
   if(file.is_open()){
-    cout<<i++;
+    int defcount = readInt();
+    for(int i = 0; i < defcount;i++){
+      string symbol = readSymbol();
+      int val = readInt();
+      createSymbol(symbol,val);
+    }
+    int usecount = readInt();
+    for(int i = 0;i <usecount; i++){
+      string symbol = readSymbol();
+    }
+    int instcount = readInt();
+    for(int i = 0; i < )
+
   }
   file.close();
+}
+
+void pass1(int num,char* argv[], vector<string>& symbols){
+  int module  = 1;
+  int module_base = 0;
+
+
+  int linenum = 0;
+  int lineoffset = 1;
+
+  ifstream file(argv[1]);
+  int i = 1;
+  string line;
+  if(file.is_open()){
+    int defcount = readInt();
+    for(int i = 0; i < defcount;i++){
+      string symbol = readSymbol();
+      int val = readInt();
+      createSymbol(symbol,val);
+    }
+    int usecount = readInt();
+    for(int i = 0;i <usecount; i++){
+      string symbol = readSymbol();
+    }
+    int instcount = readInt();
+    for(int i = 0; i < )
+
+  }
+  file.close();
+}
+
+void pass2(int num,char* argv[], vector<string>& symbols){
+  generate_symbol_table();
+  generate_memory_map();
 }
 
 
@@ -194,8 +236,7 @@ int converter(string input){
 //   return tokens_list;
 // }
 
-void relative(string input){
-  string error = "";
+string relative(string input,string error){
   int op = stoi(input);
   if(op>9999){
     op = 9999;
@@ -203,10 +244,12 @@ void relative(string input){
   }
   int opcode = op/1000;
   int operand = op%1000;
+
+
+  return to_string(op);
 }
 
-void external(string input){
-  string error = "";
+string external(string input,string error){
   int op = stoi(input);
   if(op>9999){
     op = 9999;
@@ -214,20 +257,25 @@ void external(string input){
   }
   int opcode = op/1000;
   int operand = op%1000;
+
+  return to_string(op);
 }
 
 
-void immediate(string input, int idx){
+string immediate(string input, string error){
   if(input.size()>4){
-    cout<<" Error: Illegal immediate value; treated as 9999" << endl;
+    error = " Error: Illegal immediate value; treated as 9999";
+    return "9999";
   }
   else{
     int address = stoi(input);
   }
+
+  return input;
 }
 
 
-void absolute(string input){
+string absolute(string input, string error){
   string error = "";
   int op = stoi(input);
   if(op>9999){
@@ -236,24 +284,11 @@ void absolute(string input){
   }
   int opcode = op/1000;
   int operand = op%1000;
+
+
+  return to_string(op);
 }
 
-
-// int generate_errcode(int current_token){
-//   if(current_token >= pow(2,30)){
-//     return 0;
-//   }
-  
-
-//   if(defcount>16){
-//     return 5;
-//   }
-//   if(usecount>16){
-//     return 6;
-//   }
-  
-//   return -1;
-// }
 
 
 void __parseerror(int errcode) { 
@@ -286,11 +321,25 @@ void __parseerror(int errcode) {
 
 void generate_symbol_table(){
   cout<<"Symbol Table"<<endl;
+  for(int i = 0; i < symbols.size();i++){
+    cout<<symbols[i]<<"="<<endl;
+  }
 }
 
 
 void generate_memory_map(){
   cout<<"Memory Map"<<endl;
+  for(int i = 0; i < num_instr; i++){
+    if(i<10){
+        cout<<"00"+to_string(i)+":"<<endl;
+    }
+    else if(i>=0&&i<100){
+        cout<<"0"+to_string(i)+":"<<endl;
+    }
+    else{
+        cout<<to_string(i)+":"<<endl;
+    }
+  }
 }
 
 
@@ -306,14 +355,13 @@ int main (int argc, char* argv[])
 
 
 
-  pass(1,argv,symbols);
+  pass1(argv,symbols);
 
-  //pass(2,argv);
+  pass2();
   
+//   for(int i = 0; i < num_instr;i++){
+//     cout<<instructions_list[i]<<endl;
+//   }
 
-
-  // generate_symbol_table();
-  // generate_memory_map();
-  
   return 0;
 }
