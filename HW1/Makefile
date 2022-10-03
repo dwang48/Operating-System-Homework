@@ -2,7 +2,7 @@ CC = g++
 
 CFLAGS = -g -Wall
 
-a: Linker.cpp
+Linker: Linker.cpp
 	g++ Linker.cpp -o Linker
 clean:
-	rm a
+	rm a -f Linker *~
