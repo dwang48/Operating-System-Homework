@@ -11,6 +11,8 @@
 #include <iterator>
 #include <unordered_set>
 #include <unordered_map>
+#include <regex>
+#include <limits.h>
 
 
 
@@ -20,66 +22,73 @@ using namespace std;
 //vector<vector<string>> tokens_list; //tokens_list[i] is the (i-1)th row, where tokens_list[i][j] is the jth element
 vector<string> symbols;
 
-//hashmap and hashset for fast lookup
+//hashmap and hashset for quick lookup
 unordered_set<char> instructions = {'R','E','I','A'};
-unordered_set<string> symbol_set;
-unordered_map<int,int> symbol_module_map;
-unordered_map<int,int> module_offset_map;
-unordered_map<string,int> symbol_val_map;
-unordered_map<string,pair<int,int>> symbol_location_map;
+unordered_map<string,int> symbols_table;
 
 
 //For print parse errors
-int linenum,lineoffset,linelen;
-int current_token = 0;
-int total_tokens;
 int errcode = -1;
 int warncode = -1;
 
 int num_instr = 0;
 vector<string> instructions_list;
 
+void getNewLine(FILE* file, char* line, int& linelen, int& linenum) {
+    if (fgets(line, INT_MAX, file) != NULL){
+        linenum++;
+        if (strlen(line) != 0)
+        {
+          linelen = strlen(line);
+        } else {
+          getNewLine(file, line, linelen, linenum);
+        }
+    } 
+}
 
 
-
-//functions list for the assignment
-//convert token to int
-int converter(string input);
-//parse input
-void getToken(char* argv[]);
-string definition_parser(string input);
-string use_parser(string input);
-string program_parser(string input);
-
-//functions that help check that the tokens have the correct sequence of characters and length
-bool isInt(string input);
-bool isSymbol(string input);
-bool readIAER(string input);
-int readInt();
-int readSymbol();
-int readIAER();
-
-
-//4 instructions
-string relative(string input,string error);
-string external(string input, string error);
-string immediate(string input, string error);
-string absolute(string input, string error);
-
-
-//functions for error messages and warning messages
-int generate_error_code();
-int generate_warning_code();
-void __parseerror(int errcode);
-void __parsewarning(int warncode);
-
-//two passes
-void pass1();
-void pass2();
-
-//generate output
-void generate_symbol_table();
-void generate_memory_map();
+char* getToken(FILE* file, char* line, int& linelen, int& linenum, int& lineoffset){
+  char* token = strtok(NULL,"\t\n");
+  while(token==NULL){
+    getNewLine(file,line,linelen,linenum);
+    if(feof(file)) {
+          lineoffset = linelen;
+          return token;
+        } else {
+            token = strtok(line, " \t\n");
+        }
+    }
+    lineoffset = token - line + 1;    
+    return token;
+  } 
+  // if(input.is_open()){
+  //     getline(input,line,'\n');
+  //     if(line!=""){
+  //       linenum++;
+  //       istringstream iss(line);
+  //       string current;
+  //       lineoffset = -1;
+  //       while(getline(iss,current,' ')){
+  //         lineoffset++;
+  //         // if(isSymbol(current)&&!symbol_set.count(current)){
+  //         //   symbols.push_back(current);
+  //         //   symbol_set.insert(current);
+  //         // }
+  //         // if(isIAER(current)){
+  //         //     num_instr++;
+  //         //     instructions_list.push_back(current);
+  //         // }
+  //         token = current;
+  //         return token;
+  //       }
+  //     }
+  // input.close();
+  // }
+  // else{
+  //   cout<<"Unable to open file";
+  // }
+//   return token;
+// }
 
 bool isSymbol(string input){
   char c = input[0];
@@ -94,8 +103,15 @@ bool isSymbol(string input){
   return true;
 }
 
-string readSymbol(){
-
+string readSymbol(FILE* file,char* line, int& linelen, int& linenum, int& lineoffset){
+  char* token = getToken(file,line,linelen,linenum,lineoffset);
+  cout<<token;
+  if(isSymbol(token)){
+    return token;
+  }
+  else{
+    return "";
+  }
 }
 
 
@@ -103,16 +119,23 @@ bool isInt(string input){
   for(int i = 0; i < input.size(); i++){
     if(!isdigit(input[i])){
       return false;
+      cout<<input[i];
     }
   }
   return true;
 }
 
-string readInt(){
-
+int readInt(FILE* file,char* line, int& linelen, int& linenum, int& lineoffset){
+  char* token = getToken(file,line,linelen,linenum,lineoffset);
+  if(isInt(token)){
+    return stoi(token);
+  }
+  else{
+    return 0;
+  }
 }
 
-bool readIAER(string input){
+bool isIAER(string input){
   if(input.size()==1&&(instructions.find(input[0])!=instructions.end())){
     return true;
   }
@@ -121,94 +144,156 @@ bool readIAER(string input){
   }
 }
 
-
-
-string getToken(char* argv[],int linelen, int linenum){
-  string token;
-  string line;
-  ifstream input(argv[1]);
-  if(input.is_open()){
-    while(getline(input,line,'\n')){
-      linenum++;
-      istringstream iss(line);
-      string current;
-      while(getline(iss,current,' ')){
-        if(isSymbol(current)&&!symbol_set.count(current)){
-          symbols.push_back(current);
-          symbol_set.insert(current);
-        }
-        if(readIAER(current)){
-            num_instr++;
-            instructions_list.push_back(current);
-        }
-      }
-    }
-  input.close();
+string readIAER(FILE* file,char* line, int& linelen, int& linenum, int& lineoffset){
+  string token = getToken(file,line,linelen,linenum,lineoffset);
+  cout<<token;
+  if(isIAER(token)){
+    return token;
   }
   else{
-    cout<<"Unable to open file";
+    return "";
   }
 }
 
-void pass1(int num,char* argv[], vector<string>& symbols){
+
+string relative(string input,string& error){
+  int op = stoi(input);
+  if(op>9999){
+    op = 9999;
+    error = "Error: Illegal opcode; treated as 9999";
+  }
+  int opcode = op/1000;
+  int operand = op%1000;
+
+
+  return to_string(op);
+}
+
+string external(string input,string& error){
+  int op = stoi(input);
+  if(op>9999){
+    op = 9999;
+    error = "Error: Illegal opcode; treated as 9999";
+  }
+  int opcode = op/1000;
+  int operand = op%1000;
+
+  return to_string(op);
+}
+
+
+string immediate(string input, string& error){
+  if(input.size()>4){
+    error = " Error: Illegal immediate value; treated as 9999";
+    return "9999";
+  }
+  else{
+    int address = stoi(input);
+  }
+
+  return input;
+}
+
+
+string absolute(string input, string& error){
+  int op = stoi(input);
+  if(op>9999){
+    op = 9999;
+    error = "Error: Illegal opcode; treated as 9999";
+  }
+  int opcode = op/1000;
+  int operand = op%1000;
+
+
+  return to_string(op);
+}
+
+
+int pass1(FILE *file){
   int module  = 1;
   int module_base = 0;
 
 
+  int linelen;
   int linenum = 0;
   int lineoffset = 1;
+  char line[LINE_MAX];
 
-  ifstream file(argv[1]);
   int i = 1;
-  string line;
-  if(file.is_open()){
-    int defcount = readInt();
+  while(!feof(file)){
+    int defcount = readInt(file,line,linelen,linenum,lineoffset);
+    cout<<defcount;
     for(int i = 0; i < defcount;i++){
-      string symbol = readSymbol();
-      int val = readInt();
-      createSymbol(symbol,val);
-    }
-    int usecount = readInt();
-    for(int i = 0;i <usecount; i++){
-      string symbol = readSymbol();
-    }
-    int instcount = readInt();
-    for(int i = 0; i < )
+      string symbol = readSymbol(file,line,linelen,linenum,lineoffset);
+      int val = readInt(file,line,linelen,linenum,lineoffset);
 
+      symbols_table[symbol] = val+lineoffset;
+    }
   }
-  file.close();
+  //   int usecount = readInt(file,line,linelen,linenum,lineoffset);
+  //   for(int i = 0;i <usecount; i++){
+  //     string symbol = readSymbol(file,line,linelen,linenum,lineoffset);
+  //   }
+
+  //   int instcount = readInt(file,line,linelen,linenum,lineoffset);
+  //   num_instr+= instcount;
+  //   for(int i = 0; i < instcount; i++){
+  //     string mode = readIAER(file,line,linelen,linenum,lineoffset);
+  //     string num = to_string(readInt(file,line,linelen,linenum,lineoffset));
+  //     string error = "";
+  //     if(mode =="I"){
+  //       immediate(num,error);
+  //       if(error!="")
+  //         cout<<error<<endl;
+  //         return 1;
+  //     }
+  //     else if(mode == "A"){
+  //       absolute(num,error);
+  //       if(error!="")
+  //         cout<<error<<endl;
+  //         return 1;
+  //     }
+  //     else if(mode == "E"){
+  //       external(num,error);
+  //       if(error!="")
+  //         cout<<error<<endl;
+  //         return 1;
+  //     }
+  //     else{
+  //       relative(num,error);
+  //       if(error!="")
+  //         cout<<error<<endl;
+  //         return 1;
+  //     }
+  //   }
+  // }
+  return 0;
 }
 
-void pass1(int num,char* argv[], vector<string>& symbols){
-  int module  = 1;
-  int module_base = 0;
-
-
-  int linenum = 0;
-  int lineoffset = 1;
-
-  ifstream file(argv[1]);
-  int i = 1;
-  string line;
-  if(file.is_open()){
-    int defcount = readInt();
-    for(int i = 0; i < defcount;i++){
-      string symbol = readSymbol();
-      int val = readInt();
-      createSymbol(symbol,val);
-    }
-    int usecount = readInt();
-    for(int i = 0;i <usecount; i++){
-      string symbol = readSymbol();
-    }
-    int instcount = readInt();
-    for(int i = 0; i < )
-
+void generate_symbol_table(){
+  cout<<"Symbol Table"<<endl;
+  for(int i = 0; i < symbols.size();i++){
+    cout<<symbols[i]<<"="<<symbols_table[symbols[i]]<<endl;
   }
-  file.close();
 }
 
-void pass2(int num,char* argv[], vector<string>& symbols){
+
+void generate_memory_map(){
+  cout<<"Memory Map"<<endl;
+  for(int i = 0; i < num_instr; i++){
+    if(i<10){
+        cout<<"00"+to_string(i)+":"<<endl;
+    }
+    else if(i>=0&&i<100){
+        cout<<"0"+to_string(i)+":"<<endl;
+    }
+    else{
+        cout<<to_string(i)+":"<<endl;
+    }
+  }
+}
+
+void pass2(FILE* file){
   generate_symbol_table();
   generate_memory_map();
 }
@@ -236,62 +321,8 @@ int converter(string input){
 //   return tokens_list;
 // }
 
-string relative(string input,string error){
-  int op = stoi(input);
-  if(op>9999){
-    op = 9999;
-    error = "Error: Illegal opcode; treated as 9999";
-  }
-  int opcode = op/1000;
-  int operand = op%1000;
 
-
-  return to_string(op);
-}
-
-string external(string input,string error){
-  int op = stoi(input);
-  if(op>9999){
-    op = 9999;
-    error = "Error: Illegal opcode; treated as 9999";
-  }
-  int opcode = op/1000;
-  int operand = op%1000;
-
-  return to_string(op);
-}
-
-
-string immediate(string input, string error){
-  if(input.size()>4){
-    error = " Error: Illegal immediate value; treated as 9999";
-    return "9999";
-  }
-  else{
-    int address = stoi(input);
-  }
-
-  return input;
-}
-
-
-string absolute(string input, string error){
-  string error = "";
-  int op = stoi(input);
-  if(op>9999){
-    op = 9999;
-    error = "Error: Illegal opcode; treated as 9999";
-  }
-  int opcode = op/1000;
-  int operand = op%1000;
-
-
-  return to_string(op);
-}
-
-
-
-void __parseerror(int errcode) { 
+void __parseerror(int errcode,int& linenum, int& lineoffset) { 
     vector<string> errors = { 
         "NUM_EXPECTED",        //0 Number expect, anything >= 2^30 is not a number either 
         "SYM_EXPECTED",   //1 Symbol Expected 
@@ -319,45 +350,31 @@ void __parseerror(int errcode) {
 // }
 
 
-void generate_symbol_table(){
-  cout<<"Symbol Table"<<endl;
-  for(int i = 0; i < symbols.size();i++){
-    cout<<symbols[i]<<"="<<endl;
-  }
-}
 
 
-void generate_memory_map(){
-  cout<<"Memory Map"<<endl;
-  for(int i = 0; i < num_instr; i++){
-    if(i<10){
-        cout<<"00"+to_string(i)+":"<<endl;
-    }
-    else if(i>=0&&i<100){
-        cout<<"0"+to_string(i)+":"<<endl;
-    }
-    else{
-        cout<<to_string(i)+":"<<endl;
-    }
-  }
-}
-
-
-
-int main (int argc, char* argv[])
+int main (int argc, const char* argv[])
 {
   if(argc !=2){
     cout<< "One input file is required."<<endl;
     exit(EXIT_FAILURE);
   }
-  getToken(argv);
   
+  FILE *file = fopen(argv[1],"r");
+  int ret = pass1(file);
+  fclose(file);
+
+  // if(ret==1){
+  //   return 1;
+  // }
+  // else{
+  //   file = fopen(argv[1],"r");
+  //   pass2(file);
+  //   fclose(file);
+  // }
+  return 0;
 
 
-
-  pass1(argv,symbols);
-
-  pass2();
+  //pass2(argv);
   
 //   for(int i = 0; i < num_instr;i++){
 //     cout<<instructions_list[i]<<endl;
