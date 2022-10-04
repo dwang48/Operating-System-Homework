@@ -34,6 +34,7 @@ int warncode = -1;
 int num_instr = 0;
 vector<string> instructions_list;
 
+
 void getNewLine(FILE* file, char* line, int& linelen, int& linenum) {
     if (fgets(line, INT_MAX, file) != NULL){
         linenum++;
@@ -47,20 +48,10 @@ void getNewLine(FILE* file, char* line, int& linelen, int& linenum) {
 }
 
 
-char* getToken(FILE* file, char* line, int& linelen, int& linenum, int& lineoffset){
-  char* token = strtok(NULL,"\t\n");
-  while(token==NULL){
-    getNewLine(file,line,linelen,linenum);
-    if(feof(file)) {
-          lineoffset = linelen;
-          return token;
-        } else {
-            token = strtok(line, " \t\n");
-        }
-    }
-    lineoffset = token - line + 1;    
-    return token;
-  } 
+char* getToken(char* input){
+  char* token = strtok(input,"\t\n");
+  return token;  
+} 
   // if(input.is_open()){
   //     getline(input,line,'\n');
   //     if(line!=""){
@@ -115,8 +106,8 @@ string readSymbol(FILE* file,char* line, int& linelen, int& linenum, int& lineof
 }
 
 
-bool isInt(string input){
-  for(int i = 0; i < input.size(); i++){
+bool isInt(char* input){
+  for(int i = 0; i < strlen(input); i++){
     if(!isdigit(input[i])){
       return false;
       cout<<input[i];
@@ -125,18 +116,21 @@ bool isInt(string input){
   return true;
 }
 
-int readInt(FILE* file,char* line, int& linelen, int& linenum, int& lineoffset){
-  char* token = getToken(file,line,linelen,linenum,lineoffset);
-  if(isInt(token)){
-    return stoi(token);
+int readInt(char* input){
+  char* token = getToken(input);
+  if(token==NULL){
+    return -1;
+  }
+  else if(isInt(token)){
+    return atoi(token);
   }
   else{
-    return 0;
+    return INT_MIN;
   }
 }
 
-bool isIAER(string input){
-  if(input.size()==1&&(instructions.find(input[0])!=instructions.end())){
+bool isIAER(char* input){
+  if(strlen(input)==1&&(instructions.find(input[0])!=instructions.end())){
     return true;
   }
   else{
@@ -144,14 +138,14 @@ bool isIAER(string input){
   }
 }
 
-string readIAER(FILE* file,char* line, int& linelen, int& linenum, int& lineoffset){
-  string token = getToken(file,line,linelen,linenum,lineoffset);
+char readIAER(char* input){
+  char* token = getToken(input);
   cout<<token;
   if(isIAER(token)){
-    return token;
+    return input[0];
   }
   else{
-    return "";
+    return 'n';
   }
 }
 
@@ -209,18 +203,24 @@ string absolute(string input, string& error){
 }
 
 
-int pass1(FILE *file){
+int pass1(char* argv[]){
   int module  = 1;
   int module_base = 0;
 
+  ifstream file(argv[1]);
 
   int linelen;
   int linenum = 0;
   int lineoffset = 1;
   char line[LINE_MAX];
 
-  int i = 1;
-  while(!feof(file)){
+  char* line1;
+  getline(file,line1);
+
+  int defcount = readINT(line1);
+  if(file.is_open()){
+    string line;
+    while(getline(file))
     int defcount = readInt(file,line,linelen,linenum,lineoffset);
     cout<<defcount;
     for(int i = 0; i < defcount;i++){
