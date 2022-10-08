@@ -1,0 +1,5 @@
+scheduled: scheduled.cpp
+	g++ -std=c++11 -g scheduled.cpp -o scheduled
+
+clean:
+	rm -f scheduled *.o
