@@ -1,5 +1,15 @@
+#include <stdlib.h>
 #include <stdio.h>
-main()
+#include <iostream>
+#include <fstream>
+#include <getopt.h>
+#include <iomanip>
+#include <cstring>
+#include <string>
+#include <list>
+#include <vector>
+#include <queue>
+int main()
 {
 double a,b;
 a = 1.0/3.0;
