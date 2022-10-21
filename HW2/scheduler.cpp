@@ -12,16 +12,46 @@
 
 using namespace std;
 
-struct Event{
+struct event{
     int t; //time
-    Process *p; //process
+    process *p; //process
     process_state_t prev; // prev state
     process_state_t next; // next state
     trans_state_t tran; // transition
 };
 
+struct event_list{
+    list<event *> l;
+    event *front(){
+        if(!l.empty()){
+            return nullptr; 
+        }
+        else{
+            return l.front();
+        }
+    }
+    event *poll(){
+        if(!l.empty()){
+            return nullptr; 
+        }
+        else{
+            event *ans = l.front();
+            l.pop_front();
+            return ans;
+        }
+    }
+    void push(event *e){
+        if(l.empty()){
+            l.push_back(e);
+        }
+        else{
 
-struct Process{
+        }
+    }
+};
+
+
+struct process{
     int AT; // arrival time
     int TC; // total cpu time
     int CB; // CPU Burst
@@ -52,8 +82,8 @@ class scheduler{
 public:
 	scheduler() {};
 	virtual ~scheduler() {};
-    void add_process(Process *p);
-    Process* get_next_process();
+    void add_process(process *p);
+    process* get_next_process();
     bool does_preempt();
 
 private:
@@ -103,6 +133,14 @@ void simulation(){
 
 
 int main(int argc, char* argv[]){
+   
+   
+   
+   
+   
+    // printf("%04d: %4d %4d %4d %4d %1d | %5d %5d %5d %5d\n",
+    // printf(“SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n",       
+
 
 
 }
