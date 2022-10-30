@@ -14,9 +14,10 @@ using namespace std;
 
 
 typedef enum{
+CREATED,
+READY,
 RUNNING,
 BLOCKED,
-READY,
 FINISHED
 } process_state_t;
 
@@ -28,7 +29,39 @@ typedef enum{
 } trans_state_t;
 
 
+class myrandom{
+    private:
+        vector<int> randvals;
+        int ofs;
+    public:
+        int get(int burst){
+            return 1 + (randvals[ofs++] % burst); 
+        };
+        myrandom(){};
 
+        //for reading randomfile input
+        myrandom(char* file){
+            ifstream in(file);
+            if(!in.is_open()){
+                exit(EXIT_FAILURE);
+            }
+            string size;
+            getline(in,size);
+            randvals.resize(stoi(size));
+            int n = randvals.size();
+            int val;
+            for(int i = 0; i < n; i++){
+                in>>val;
+                randvals[i] = val;
+            }
+            ofs = 0;
+        }
+
+    
+
+
+
+};
 
 
 
@@ -82,7 +115,7 @@ struct event_list{
     list<event *> l;
     int get_next_event_time(){
         if(!l.empty()){
-            return nullptr; 
+            return -1; 
         }
         else{
             return l.front()->t;
@@ -103,15 +136,15 @@ struct event_list{
             l.push_back(e);
         }
         else{
-            list<event*>::iterator<event*> it;
-            for(it = q.begin();it!=q.end();++it){
-                if(it->t>e->t){
-                    q.insert(it,e);
+            list<event*>::iterator it;
+            for(it = l.begin();it!=l.end();++it){
+                if((*it)->t>e->t){
+                    l.insert(it,e);
                     break;
                 }
             }
-            if(it==q.end()){
-                q.push_back(e);
+            if(it==l.end()){
+                l.push_back(e);
             }
         }
     }
@@ -132,9 +165,8 @@ class scheduler{
 public:
 	scheduler() {};
 	virtual ~scheduler() {};
-    void add_process(process *p);
-    process* get_next_process();
-    bool does_preempt();
+    void add_process(process *p) {};
+    process* get_next_process(){return nullptr;};
 
 private:
 
@@ -143,32 +175,43 @@ private:
 
 //FCFS,  LCFS,  SRTF,  RR  (RoundRobin),  PRIO  (PriorityScheduler)  and  PREemptive  PRIO  (PREPRIO)
 enum{
-    FCFS,LCFS,SRTF,RR,PRIO,PREPRIO
+    F,L,S,R,P,E
 };
 
 class FCFS:public scheduler{
     private:
-        list<process*> q;
+        list<process*> l;
     public:
+        string type = "";
+        FCFS(){
+            type = "FCFS";
+        }
         void add_process(process* p){
-            p->process_state = READY;
-
+            p->state = READY;
+            l.push_back(p);
         }
         process* get_next_process(){
-
+            if(l.empty()){
+                return nullptr;
+            }
+            else{
+                auto p = l.front();
+                l.pop_front();
+                return p;
+            }
         }
 };
 class LCFS:public scheduler{
     private:
-        list<process*> q;
+        list<process*> l;
 };
 class SRTF:public scheduler{
     private:
-        list<process*> q;
+        list<process*> l;
 };
 class RR:public scheduler{
     private:
-        list<process*> q;
+        list<process*> l;
 };
 class PRIO:public scheduler{
 private:
@@ -192,7 +235,7 @@ void print_event(){
 
 }
 
-void simulation(scheduler * sched, event_list * el, int quantum,){
+void simulation(scheduler * sched, event_list * el, int quantum){
     event* evt;
     int current_time;
     bool call_scheduler = false;
@@ -201,7 +244,7 @@ void simulation(scheduler * sched, event_list * el, int quantum,){
         process *p = evt->p;
         current_time = evt->t;
         int transition = evt->tran;
-        int timeInPrevState = current_time - proc->state_ts;
+        int timeInPrevState = current_time - p->state_ts;
 
         switch(evt->tran){
             case TRANS_TO_READY:
@@ -267,9 +310,11 @@ int main(int argc, char* argv[]){
     string mode = "";
     int maxprios = 4;
     int quantum = -1;
+    bool preempt = false;
 
-    for(;;){
-        switch(getopt(argc,argv,"vteps:")){
+    int opt;
+    while((opt = getopt(argc, argv, "vteps:")) != -1){
+        switch(opt){
             case 'v':
                 cout<<" sdasd"<<endl;
                 break;
@@ -282,25 +327,32 @@ int main(int argc, char* argv[]){
                 break;
             case 's':
                 mode = optarg;
-                cout<<mode<<endl;
+                //cout<<mode<<endl;
+                break;
+            default:
                 break;
         }
     }
-   
-   
+
+scheduler* sched = nullptr;
 
    switch(mode[0]){
     case 'F':
+        sched = new FCFS();
         break;
     case 'L':
+        sched = new LCFS();
         break;
     case 'S':
+        sched = new SRTF();
         break;
     case 'R':
+        quantum = stoi(mode.substr(1,mode.size()));
+        cout<<quantum;
+        //sched = new RR(quantum);
         break;
     case 'P':
-        string:size_type delim = mode.find(':');
-
+        
 
         break;
     case 'E':
@@ -309,14 +361,39 @@ int main(int argc, char* argv[]){
         break;
    
    }
+
+    char *inputfile = argv[optind];
+    char *randfile = argv[optind+1];
+
+    //cout<<inputfile;
+    ifstream in(inputfile);
+    while(!in.is_open()){
+        cout<<"File cannot be opened!";
+        exit(EXIT_FAILURE);
+    }
+    int AT,TC,CB,IO,PRIO;
+    while(!in.eof()){
+        in>>AT>>TC>>CB>>IO;
+        if(in.eof()){
+            break;
+        }
+        //PRIO = 
+        cout<<AT<<"  "<<TC<<"  "<<CB<<"  "<<IO<<endl;
+    }
    
    
     // printf("%04d: %4d %4d %4d %4d %1d | %5d %5d %5d %5d\n",
     // printf(“SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n",       
+    event_list* el = new event_list();
 
-    simulation();
+
+    simulation(sched,el,quantum);
+    //cout<<mode<<endl;
+    double TT = 0.0,CW=0.0;
+
+
     
-    
+
     return 0;
 
 
