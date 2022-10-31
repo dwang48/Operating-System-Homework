@@ -167,6 +167,8 @@ public:
 	virtual ~scheduler() {};
     void add_process(process *p) {};
     process* get_next_process(){return nullptr;};
+    scheduler_type type;
+
 
 private:
 
@@ -174,17 +176,16 @@ private:
 
 
 //FCFS,  LCFS,  SRTF,  RR  (RoundRobin),  PRIO  (PriorityScheduler)  and  PREemptive  PRIO  (PREPRIO)
-enum{
+typedef enum{
     F,L,S,R,P,E
-};
+} scheduler_type;
 
 class FCFS:public scheduler{
     private:
         list<process*> l;
     public:
-        string type = "";
         FCFS(){
-            type = "FCFS";
+            type = F;
         }
         void add_process(process* p){
             p->state = READY;
@@ -204,20 +205,47 @@ class FCFS:public scheduler{
 class LCFS:public scheduler{
     private:
         list<process*> l;
+    public:
+    LCFS(){
+        type = L;
+    }
+    void add_process(process* p){
+            p->state = READY;
+            l.push_back(p);
+    }
+
+    
 };
 class SRTF:public scheduler{
     private:
         list<process*> l;
+    public:
+    SRTF(){
+        type = S;
+    }
+    void add_process(process* p){
+            p->state = READY;
+            
+    }
+
 };
 class RR:public scheduler{
     private:
         list<process*> l;
+    public:
+    RR(int quantum){
+        type = R;
+    }
+    
 };
 class PRIO:public scheduler{
 private:
     list<process *> active;
 	list<process *> expired;
 public:
+    PRIO(){
+        type = P;
+    }
 
 };
 class PREPRIO:public scheduler{
@@ -226,8 +254,10 @@ private:
 	list<process *> expired;
 
 public:
-
-
+    PREPRIO(){
+        type = E;
+    }
+    
 
 };
 
@@ -311,7 +341,7 @@ int main(int argc, char* argv[]){
     int maxprios = 4;
     int quantum = -1;
     bool preempt = false;
-
+    vector<process*> plist; 
     int opt;
     while((opt = getopt(argc, argv, "vteps:")) != -1){
         switch(opt){
@@ -349,9 +379,10 @@ scheduler* sched = nullptr;
     case 'R':
         quantum = stoi(mode.substr(1,mode.size()));
         cout<<quantum;
-        //sched = new RR(quantum);
+        sched = new RR(quantum);
         break;
     case 'P':
+        sched = new PRIO();
         
 
         break;
@@ -365,9 +396,11 @@ scheduler* sched = nullptr;
     char *inputfile = argv[optind];
     char *randfile = argv[optind+1];
 
+    myrandom rand(randfile);
+
     //cout<<inputfile;
     ifstream in(inputfile);
-    while(!in.is_open()){
+    if(!in.is_open()){
         cout<<"File cannot be opened!";
         exit(EXIT_FAILURE);
     }
@@ -377,8 +410,10 @@ scheduler* sched = nullptr;
         if(in.eof()){
             break;
         }
-        //PRIO = 
-        cout<<AT<<"  "<<TC<<"  "<<CB<<"  "<<IO<<endl;
+        PRIO = rand.get(maxprios);
+
+
+        //cout<<AT<<"  "<<TC<<"  "<<CB<<"  "<<IO<<endl;
     }
    
    
@@ -388,10 +423,35 @@ scheduler* sched = nullptr;
 
 
     simulation(sched,el,quantum);
-    //cout<<mode<<endl;
+    cout<<mode<<endl;
     double TT = 0.0,CW=0.0;
+    for(int i = 0; i < plist.size();i++){
+        printf("%04d: %4d %4d %4d %4d %1d | %5d %5d %5d %5d\n",
+            plist[i]->pid,plist[i]->AT,plist[i]->TC,plist[i]->CB,
+            plist[i]->IO,plist[i]->PRIO,plist[i]->FT,plist[i]->TT,
+            plist[i]->IT,plist[i]->CW
+        );
+        CW+=plist[i]->CW;
+        TT+=plist[i]->FT-plist[i]->AT;
+    }
+    // double cpu_util   = 100.0 * (time_cpubusy  / (double) finishtime); 
+    // double io_util    = 100.0 * (time_iobusy   / (double) finishtime); 
+    // double throughput = 100.0 * (num_processes / (double) finishtime); 
+
+    // printf("SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n",
+        
+    
+
+    // );
 
 
+
+
+
+    // }
+    
+
+    
     
 
     return 0;
