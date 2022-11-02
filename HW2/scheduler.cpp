@@ -714,7 +714,7 @@ scheduler* sched = nullptr;
         io_util,
         TT/num_processes,
         CW/num_processes,       
-        throughput
+        throughput 
     );
 
     return 0;
