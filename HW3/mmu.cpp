@@ -10,7 +10,8 @@
 #include <vector>
 #include <queue>
 #include <unordered_map>
-
+#include <cmath>
+#include <sstream>
 
 
 using namespace std;
@@ -35,7 +36,6 @@ using namespace std;
 
 unsigned long context_switches = 0;
 unsigned long process_exits = 0;
-int instr_idx = 0;
 
 
 class myrandom{
@@ -68,13 +68,6 @@ class myrandom{
         }
 };
 
-
-
-
-// vector<string> split(){
-
-// }
-
 struct vma{
     int start_vpage;
     int end_vpage;
@@ -98,9 +91,9 @@ struct pte_t{
     unsigned frame_index:7;
     //optinal
     unsigned file_mapped:1;
-    unsigned page_index:6;
-    unsigned just_referenced:1;
-    unsigned not_assigned:12;
+    // unsigned page_index:6;
+    // unsigned just_referenced:1;
+    unsigned not_assigned:19;
     
     pte_t(){
         present = 0;
@@ -110,8 +103,8 @@ struct pte_t{
         pageout = 0;
         frame_index = 0;
         file_mapped = 0;
-        page_index = 0;
-        just_referenced = 0;
+        // page_index = 0;
+        // just_referenced = 0;
         not_assigned = 0;
     }
 };
@@ -140,7 +133,7 @@ struct process{
     process(int id){
         pid = id;
         for(int i = 0; i < PTE; i++){
-            pte_t* temp = new pte_t;
+            pte_t* temp = new pte_t();
             page_table[i] = temp;
         }
     }
@@ -176,17 +169,29 @@ struct instr{
 
 vector<process*> plist;
 vector<instr> ilist;
+vector<frame_t*> frame_table;
+list<frame_t*> free_table;
 
-
-
+void printFT(){
+    printf("FT:");
+    for(int i = 0; i < frame_table.size();i++){
+        if(frame_table[i]->mapped){
+            cout<<" "<<frame_table[i]->pid<<":"<<frame_table[i]->vpage;
+        }
+        else{
+            cout<< " *";
+        }
+    }
+    printf("\n");
+}
 class Pager{
     private:
     public:
         int frames;
-        int handle;
-        vector<frame_t*> frame_table;
-        list<frame_t*> free_table;
-        virtual frame_t* select_victim_frame() = 0;
+        int hand;
+        // vector<frame_t*> frame_table;
+        // list<frame_t*> free_table;
+        virtual frame_t* select_victim_frame(int i) = 0;
         frame_t* allocate(){
             if(!free_table.empty()){
                 frame_t* frame = free_table.front();
@@ -197,10 +202,10 @@ class Pager{
                 return nullptr;
             }
         }
-        frame_t* get(){
+        frame_t* get(int i){
             frame_t *cur = allocate();
             if(!cur){
-                cur = select_victim_frame();
+                cur = select_victim_frame(i);
             }
             return cur;
         }
@@ -213,19 +218,7 @@ class Pager{
                 frame_table.emplace_back(temp);
                 free_table.emplace_back(temp);
             }
-            handle = 0;
-        }
-        void print(){
-            printf("FT:");
-            for(int i = 0; i < frame_table.size();i++){
-                if(frame_table[i]->mapped){
-                    cout<<" "<<frame_table[i]->pid<<":"<<frame_table[i]->vpage;
-                }
-                else{
-                    cout<< " *";
-                }
-            }
-            printf("\n");
+            hand = 0;
         }
 };
 
@@ -235,8 +228,8 @@ class FIFO : public Pager{
     public:
         FIFO(int f) : Pager(f){
         };
-        frame_t* select_victim_frame(){
-            frame_t* frame = frame_table[handle++%frames];
+        frame_t* select_victim_frame(int i){
+            frame_t* frame = frame_table[hand++%frames];
             return frame;
         }
 };
@@ -249,7 +242,7 @@ class Random : public Pager{
             rand = new myrandom(randomfile);
         }
 
-        frame_t* select_victim_frame(){
+        frame_t* select_victim_frame(int i){
             int r = rand->get(frames);
             //cout<<"random:"<<r<<endl;
             frame_t* frame = frame_table[r];
@@ -262,49 +255,121 @@ class Clock : public Pager{
     public:
     Clock(int f) : Pager(f){
         };
-      frame_t* select_victim_frame(){
-            frame_t* frame = frame_table[handle++%frames];
-            return frame;
+      frame_t* select_victim_frame(int i){
+        while(true){
+            frame_t* frame = frame_table[hand++%frames];
+            if(plist[frame->pid]->page_table[frame->vpage]->referenced){
+                plist[frame->pid]->page_table[frame->vpage]->referenced = 0;
+            }
+            else{
+                return frame;
+            }
         }
+    }
 };
 
 class NRU : public Pager{
+    private:
+        int last = -1;
     public:
-    NRU(int f) : Pager(f){
-        };
-    frame_t* select_victim_frame(){
-            frame_t* frame = frame_table[handle++%frames];
-            return frame;
-        }
+        NRU(int f) : Pager(f){
+            };
+        frame_t* select_victim_frame(int instr_idx){
+            vector<int> page_class(4,-1);
+            int idx = hand % frames;
+            bool flag;
+            if(instr_idx-last>49){
+                flag = true;
+            }
+            else{
+                flag = false;
+            }
+
+            for(int i = 0; i < frames; i++){
+                frame_t* frame = frame_table[hand++%frames];
+                pte_t* pte = plist[frame->pid]->page_table[frame->vpage];
+                int page_idx = (pte->referenced << 1) + pte->modified;
+                if(page_class[page_idx] == -1){
+                    page_class[page_idx] = frame->frame_index;
+                    if(!page_idx){
+                        if(flag){
+                            idx = frame->frame_index;
+                        }
+                        else{
+                            return frame;
+                        }
+                    }
+                }
+            }
+            for(int x: page_class){
+                if(x!=-1){
+                    idx = x;
+                    break;
+                }
+            }
+            if(flag){
+                for(int i = 0;i < frames;i++){
+                    plist[frame_table[i]->pid]->page_table[frame_table[i]->vpage]->referenced = 0;
+                }
+                last = instr_idx;
+            }
+            hand = (idx+1) % frames;
+            return frame_table[idx];
+
+    }
 };
 
 class Aging : public Pager{
     public:
-    Aging(int f) : Pager(f){
-        };
-    frame_t* select_victim_frame(){
-            frame_t* frame = frame_table[handle++%frames];
-            return frame;
+        Aging(int f) : Pager(f){
+            };
+        frame_t* select_victim_frame(int x){
+            int idx = hand % frames;
+            for(int i = 0; i < frames; i++){
+                frame_t* frame = frame_table[hand%frames];
+                pte_t* pte = plist[frame->pid]->page_table[frame->vpage];
+                frame->age = (frame->age / 2) + (pte->referenced * pow(2,31));
+                pte->referenced = 0;
+                if(frame->age < frame_table[idx]->age){
+                    idx = hand % frames;
+                }
+                hand++;
+            }
+            hand = (idx+1) % frames;
+            return frame_table[idx];
         }
 };
 
 class Working_Set : public Pager{
     public:
-    Working_Set(int f) : Pager(f){
-        };
-    frame_t* select_victim_frame(){
-            frame_t* frame = frame_table[handle++%frames];
-            return frame;
+        Working_Set(int f) : Pager(f){
+            };
+        frame_t* select_victim_frame(int instr_idx){
+            int age = -1;
+            int idx = hand % frames;
+            for(int i = 0; i < frames; i++){
+                frame_t* frame = frame_table[hand%frames];
+                pte_t* pte = plist[frame->pid]->page_table[frame->vpage];
+                if(pte->referenced){
+                    pte->referenced = 0;
+                    frame->tau = instr_idx;
+                }
+                else{
+                    if(instr_idx - frame->tau > 49){
+                        hand++;
+                        return frame;
+                    }
+                    else if(instr_idx - frame->tau > age){
+                        idx = hand % frames;
+                        age = instr_idx - frame->tau;
+                    }
+                }
+                hand++;
+            }
+            hand = (idx+1) % frames;
+            return frame_table[idx];
         }
 };
-
-
-
-
-
-
-
-
 
 void simulation(Pager* p, bool option_O,bool option_x){
     process* cur = nullptr;
@@ -338,12 +403,12 @@ void simulation(Pager* p, bool option_O,bool option_x){
                         cur->pstats.fouts++;
                     }
                     int idx = cur->page_table[j]->frame_index;
-                    p->frame_table[idx]->pid = 0;
-                    p->frame_table[idx]->vpage = 0;
-                    p->frame_table[idx]->mapped = 0;
-                    p->frame_table[idx]->age = 0;
-                    p->frame_table[idx]->tau = 0;
-                    p->free_table.emplace_back(p->frame_table[idx]);
+                    frame_table[idx]->pid = 0;
+                    frame_table[idx]->vpage = 0;
+                    frame_table[idx]->mapped = 0;
+                    frame_table[idx]->age = 0;
+                    frame_table[idx]->tau = 0;
+                    free_table.emplace_back(frame_table[idx]);
                 }
                 cur->page_table[j]->present = 0;
                 cur->page_table[j]->write_protected = 0;
@@ -377,10 +442,13 @@ void simulation(Pager* p, bool option_O,bool option_x){
                     cur->pstats.segv++;
                     continue;
                 }
-                frame_t* newframe = p->get();
+                frame_t* newframe = p->get(i);
                 //-> figure out if/what to do with old frame if it was mapped
                 // see general outline in MM-slides under Lab3 header and writeup below
                 // see whether and how to bring in the content of the access page.
+                // now the page is definitely present
+                // check write protection
+                // simulate instruction execution by hardware by updating the R/M PTE bits
                 if(newframe->mapped){
                     if(option_O){
                         cout << " UNMAP " << newframe->pid<<":"<<newframe->vpage<<endl;
@@ -432,7 +500,7 @@ void simulation(Pager* p, bool option_O,bool option_x){
                 newframe->vpage = vpage;
                 newframe->mapped = 1;
                 newframe->age = 0;
-                newframe->tau = instr_idx;
+                newframe->tau = i;
                 cur->pstats.maps++;                
             }
             pte->referenced = 1;
@@ -447,26 +515,6 @@ void simulation(Pager* p, bool option_O,bool option_x){
                     pte->modified = 1;
                 }
             }
-            if(option_x){
-                cout << "PT[" << cur->pid << "]:";
-                for(int j = 0; j < PTE; j++) {
-                    //cout << page_table[i]->VALID << " " << page_table[i]->WRITE_PROTECTED << " " << page_table[i]->MODIFIED << " " << page_table[i]->REFERENCED << " " << page_table[i]->PAGEDOUT << " " << page_table[i]->FRAME_INDEX << "\n";
-                    if(cur->page_table[j]->present) {
-                        string ref = cur->page_table[j]->referenced? "R" : "-";
-                        string mod = cur->page_table[j]->modified? "M" : "-";
-                        string pag = cur->page_table[j]->pageout? "S" : "-";
-                        cout << " " << cur << ":" << ref << mod << pag;
-                    }
-                    else {
-                        cout << " " << (cur->page_table[j]->pageout? "#" : "*");
-                    }
-                }
-                cout << endl;
-            }
-
-        // now the page is definitely present
-        // check write protection
-        // simulate instruction execution by hardware by updating the R/M PTE bits
         }
     }
 
@@ -541,9 +589,9 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     }
 
-    string line = "";
-    while(!in.eof()){
-        getline(in,line);
+    string line;
+    // skip the first # part
+    while(getline(in,line)){
         if(line.size() > 0 && line[0] != '#'){
             break;
         }
@@ -565,22 +613,13 @@ int main(int argc, char* argv[]){
                     break;
                 }
             }
-            vector<string> res;
-            string p = " ";
-            string::size_type d;
-            line += p;
-            int i = 0;
-            while(i < line.size()) {
-                d = line.find(p, i);
-                if(d < line.size()) {
-                    res.push_back(line.substr(i, d - i));
-                    i = d + p.size();
-                }
-                else {
-                    i++;
-                }
+            vector<int> res;
+            istringstream iss(line);
+            for(string s;iss >> s;){
+                res.push_back(stoi(s));
             }
-            vma* new_vma = new vma(stoi(res[0]),stoi(res[1]),stoi(res[2]),stoi(res[3]));
+
+            vma* new_vma = new vma(res[0],res[1],res[2],res[3]);
             temp->vma_vec.push_back(new_vma);
         }
     }
@@ -593,19 +632,9 @@ int main(int argc, char* argv[]){
 			continue;
 		}
         vector<string> res;
-        string p = " ";
-        string::size_type d;
-        line += p;
-        int i = 0;
-        while(i < line.size()) {
-            d = line.find(p, i);
-            if(d < line.size()) {
-                res.push_back(line.substr(i, d - i));
-                i = d + p.size();
-            }
-            else {
-                i++;
-            }
+            istringstream iss(line);
+            for(string s;iss >> s;){
+                res.push_back(s);
         }
         instr new_instr = instr(res[0],stoi(res[1]));
         ilist.emplace_back(new_instr);
@@ -638,15 +667,20 @@ int main(int argc, char* argv[]){
 
     // FT
     if(option_F) {
-        p->print();
+        printFT();
     }
-
 
     if(option_S) {
         unsigned long long cost = 0;
         // PROC
         for(int i = 0; i < plist.size(); i++) {
             pstats_t pstats = plist[i]->pstats;
+            cost += pstats.unmaps * UNMAPS + pstats.maps *MAPS +
+                    pstats.ins * INS + pstats.outs * OUTS +
+                    pstats.fins * FINS+ pstats.fouts * FOUTS +
+                    pstats.zeros * ZEROS +
+                    pstats.segv * SEGV +
+                    pstats.segprot * SEGPROT;
             printf("PROC[%d]: U=%lu M=%lu I=%lu O=%lu FI=%lu FO=%lu Z=%lu SV=%lu SP=%lu\n",
                 plist[i]->pid,
                 pstats.unmaps,
@@ -658,12 +692,6 @@ int main(int argc, char* argv[]){
                 pstats.zeros,
                 pstats.segv,
                 pstats.segprot);
-                cost += pstats.unmaps * UNMAPS + pstats.maps *MAPS +
-                pstats.ins * INS + pstats.outs * OUTS +
-                pstats.fins * FINS+ pstats.fouts * FOUTS +
-                pstats.zeros * ZEROS +
-                pstats.segv * SEGV +
-                pstats.segprot * SEGPROT;
         }
         // TOTALCOST
         cost += ilist.size() + context_switches * CONTEXT_SWITCHES + process_exits * PROCESS_EXITS-context_switches-process_exits;
