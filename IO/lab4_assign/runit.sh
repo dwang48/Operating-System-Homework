@@ -3,7 +3,7 @@
 # Author: Hubertus Franke  (frankeh@nyu.edu)
 OUTDIR=${1:-.}
 shift
-SCHED=${*:-../src/iosched}
+SCHED=${*:-../iosched}
 
 echo "outdir=<$OUTDIR> sched=<$SCHED>"
 
