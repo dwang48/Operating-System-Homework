@@ -129,24 +129,30 @@ class LOOK: public Scheduler{
             else{
                 list<req*>::iterator iter;
                 int mi = INT_MAX;
-                req *temp;
+                req *temp = nullptr;
                 bool flag = false;
+                int diff;
                 list<req*>::iterator erase_iter;
                 for(iter = io_list.begin();iter!= io_list.end();iter++){
-                    int diff = head-(*iter)->accessed_track;
-                    if(abs(head-(*iter)->accessed_track)<mi){
-                        mi = abs(head-(*iter)->accessed_track);
+                    diff = (*iter)->accessed_track-head;
+                    if((((diff * direction )>= 0) && abs(diff) < mi)){
+                        mi = abs(diff);
                         erase_iter = iter;
+                        temp = *erase_iter;
+                    }
+                }
+                if(!temp){
+                    direction = -direction;
+                    for(iter = io_list.begin();iter!=io_list.end();iter++){
+                        diff = (*iter)->accessed_track-head;
+                        if((((diff * direction )>= 0) && abs(diff) < mi)){
+                            mi = abs(diff);
+                            erase_iter = iter;
+                        }
                     }
                 }
                 temp = *erase_iter;
                 io_list.erase(erase_iter);
-                if(temp->accessed_track > head){
-                    direction = 1;
-                }
-                else if(temp->accessed_track < head){
-                    direction = -1;
-                }
                 return temp;
             }
         }
@@ -167,8 +173,33 @@ class CLOOK:public Scheduler{
                 return nullptr;
             }
             else{
-                req *temp = io_list.front();
-                io_list.pop_front();
+                list<req*>::iterator iter;
+                int mi = INT_MAX;
+                req *temp = nullptr;
+                bool flag = false;
+                int diff;
+                list<req*>::iterator erase_iter;
+                for(iter = io_list.begin();iter!= io_list.end();iter++){
+                    diff = (*iter)->accessed_track-head;
+                    if(((diff >= 0) && diff < mi)){
+                        mi = abs(diff);
+                        erase_iter = iter;
+                        temp = *erase_iter;
+                    }
+                }
+                if(!temp){
+                    mi = INT_MAX;
+                    for(iter = io_list.begin();iter!=io_list.end();iter++){
+                        diff = (*iter)->accessed_track;
+                        if(diff < mi){
+                            mi = abs(diff);
+                            erase_iter = iter;
+                        }
+                    }
+                }
+                
+                temp = *erase_iter;
+                io_list.erase(erase_iter);
                 if(temp->accessed_track > head){
                     direction = 1;
                 }
@@ -186,29 +217,51 @@ class CLOOK:public Scheduler{
 
 class FLOOK: public Scheduler{
     private:
+        list<req*> active_list;
         list<req*> io_list;
     public:
         void add(req *r){
             io_list.push_back(r);
         }
         req* poll(){
-            if(io_list.empty()){
+            req *temp = nullptr;
+            list<req*>::iterator erase_iter;
+            if(active_list.empty()&&io_list.empty()){
                 return nullptr;
             }
-            else{
-                req *temp = io_list.front();
-                io_list.pop_front();
-                if(temp->accessed_track > head){
-                    direction = 1;
-                }
-                else if(temp->accessed_track < head){
-                    direction = -1;
-                }
-                return temp;
+            else if(active_list.empty()){
+                active_list.swap(io_list);
             }
+            list<req*>::iterator iter;
+            int mi = INT_MAX;
+            
+            bool flag = false;
+            int diff;
+            
+            for(iter = active_list.begin();iter!= active_list.end();iter++){
+                diff = (*iter)->accessed_track-head;
+                if((((diff * direction )>= 0) && abs(diff) < mi)){
+                    mi = abs(diff);
+                    erase_iter = iter;
+                    temp = *erase_iter;
+                }
+            }
+            if(!temp){
+                direction = -direction;
+                for(iter = active_list.begin();iter!=active_list.end();iter++){
+                    diff = (*iter)->accessed_track-head;
+                    if((((diff * direction )>= 0) && abs(diff) < mi)){
+                        mi = abs(diff);
+                        erase_iter = iter;
+                    }
+                }
+            }
+            temp = *erase_iter;
+            active_list.erase(erase_iter);
+            return temp;
         }
         bool empty(){
-            return !io_list.size();
+            return !(io_list.size()&&active_list.size());
         }
 };
 
